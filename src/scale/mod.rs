@@ -281,6 +281,34 @@ impl Default for Source {
     }
 }
 
+/// Backend that fits outlines to the pixel grid.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub enum HintingEngine {
+    /// Interpret the font's instructions, autohinting fonts that have none.
+    #[default]
+    AutoFallback,
+    /// Always autohint. Matches `FT_LOAD_FORCE_AUTOHINT` and `hintslight`.
+    Auto,
+    /// Always interpret the font's instructions. Matches `FT_LOAD_NO_AUTOHINT`.
+    Interpreter,
+}
+
+/// Rasterization target that hinted outlines are fitted for.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub enum HintingTarget {
+    /// Matches `FT_LOAD_TARGET_NORMAL`.
+    Normal,
+    /// Fits vertically only. Matches `FT_LOAD_TARGET_LIGHT`.
+    Light,
+    /// Matches `FT_LOAD_TARGET_LCD`.
+    #[default]
+    Lcd,
+    /// Matches `FT_LOAD_TARGET_LCD_V`.
+    VerticalLcd,
+    /// Matches `FT_LOAD_TARGET_MONO`.
+    Mono,
+}
+
 /// Context that manages caches and scratch buffers for scaling.
 ///
 /// See the module level [documentation](index.html#building-the-scaler) for detail.
@@ -357,6 +385,8 @@ pub struct ScalerBuilder<'a> {
     coords: &'a mut Vec<SkrifaNormalizedCoord>,
     size: f32,
     hint: bool,
+    hinting_engine: HintingEngine,
+    hinting_target: HintingTarget,
 }
 
 impl<'a> ScalerBuilder<'a> {
@@ -386,6 +416,8 @@ impl<'a> ScalerBuilder<'a> {
             coords: &mut context.coords,
             size: 0.,
             hint: false,
+            hinting_engine: HintingEngine::default(),
+            hinting_target: HintingTarget::default(),
         }
     }
 
@@ -399,6 +431,20 @@ impl<'a> ScalerBuilder<'a> {
     /// Specifies whether to apply hinting to outlines. The default value is `false`.
     pub fn hint(mut self, yes: bool) -> Self {
         self.hint = yes;
+        self
+    }
+
+    /// Specifies the backend used to fit outlines to the pixel grid. The
+    /// default value is [`HintingEngine::AutoFallback`].
+    pub fn hinting_engine(mut self, engine: HintingEngine) -> Self {
+        self.hinting_engine = engine;
+        self
+    }
+
+    /// Specifies the target that hinted outlines are fitted for. The default
+    /// value is [`HintingTarget::Lcd`].
+    pub fn hinting_target(mut self, target: HintingTarget) -> Self {
+        self.hinting_target = target;
         self
     }
 
@@ -457,6 +503,8 @@ impl<'a> ScalerBuilder<'a> {
                     outlines,
                     size: skrifa_size,
                     coords: self.coords,
+                    engine: self.hinting_engine,
+                    target: self.hinting_target,
                 };
                 self.hinting_cache.get(&key)
             }
